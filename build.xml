@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Build the Hello World WAR using Apache Ant.
+
+  This build ships inside the Tomcat-Ant image and is meant to run on the
+  server (where Java, Ant, and the Tomcat servlet-api are all available). It
+  compiles src/main/java and packages the result into a WAR that can be
+  deployed with deptools.py deploy-war.
+
+  Run:  ant -f build.xml
+  Targets: init | compile | war | clean
+-->
+<project name="helloworld" default="war" basedir=".">
+
+  <description>Build a Hello World WAR for the Tomcat-Ant image.</description>
+
+  <!-- Locations, overridable via build.properties. -->
+  <property file="build.properties"/>
+  <property name="servlet.api.jar" location="${servlet.api.jar}"/>
+  <property name="war.name" location="${war.name}"/>
+  <property name="webapp.dir" location="${webapp.dir}"/>
+  <!-- build.dir is provided by build.properties. build.sh bakes the resolved
+       BACKUP_HOME value in (including the /build suffix), so this WAR build
+       targets ${base.dir}/helloworld/build directly. -->
+
+  <target name="init" description="Create the build directories">
+    <mkdir dir="${build.dir}/WEB-INF"/>
+    <mkdir dir="${build.dir}/WEB-INF/classes"/>
+  </target>
+
+  <target name="compile" depends="init" description="Compile the Java sources">
+    <!-- Classes MUST land under WEB-INF/classes so Tomcat's webapp classloader
+         (which only scans WEB-INF/classes and WEB-INF/lib) discovers the
+         @WebServlet annotation. Putting them at the WAR root (build.dir/classes)
+         would deploy them outside WEB-INF and the servlet would never register. -->
+    <javac srcdir="src/main/java"
+           destdir="${build.dir}/WEB-INF/classes"
+           source="21"
+           target="21"
+           includeantruntime="false">
+      <classpath>
+        <pathelement location="${servlet.api.jar}"/>
+      </classpath>
+    </javac>
+  </target>
+
+  <!-- Depends on clean so a stale WAR from a prior run can't end up inside the new one ("A zip file cannot include itself"). -->
+  <target name="war" depends="clean,compile" description="Package the WAR">
+    <!-- Assemble WEB-INF/web.xml from the source tree. -->
+    <mkdir dir="${build.dir}/WEB-INF"/>
+    <copy file="src/main/webapp/WEB-INF/web.xml" tofile="${build.dir}/WEB-INF/web.xml"/>
+
+
+    <!-- Bundle the servlet-api into WEB-INF/lib so the app is self-contained. -->
+    <copy file="${servlet.api.jar}" tofile="${build.dir}/WEB-INF/lib/servlet-api.jar"/>
+
+    <!-- needxmlfile="false" because web.xml is copied in explicitly above. -->
+    <!-- destfile is anchored to ${build.dir} so the WAR is written into the
+         build directory (${base.dir}/helloworld/build) rather than the source root. -->
+    <war destfile="${build.dir}/${war.name}" basedir="${build.dir}" needxmlfile="false"/>
+  </target>
+
+  <target name="clean" description="Remove build artifacts">
+    <delete dir="${build.dir}"/>
+  </target>
+
+</project>
